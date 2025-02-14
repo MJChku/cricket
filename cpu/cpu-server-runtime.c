@@ -941,17 +941,18 @@ bool_t cuda_launch_cooperative_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3
  *   Enqueues a host function call in a stream.
  */
 
-bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
+bool_t cuda_launch_kernel_1_svc(timestamp ts, ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
                                 mem_data args, size_t sharedMem, ptr stream,
-                                int *result, struct svc_req *rqstp)
+                                timedint *result, struct svc_req *rqstp)
 {
     RECORD_API(cuda_launch_kernel_1_argument);
-    RECORD_ARG(1, func);
-    RECORD_ARG(2, gridDim);
-    RECORD_ARG(3, blockDim);
+    RECORD_ARG(1, ts);
+    RECORD_ARG(2, func);
+    RECORD_ARG(3, gridDim);
+    RECORD_ARG(4, blockDim);
     RECORD_DATA(args.mem_data_len, args.mem_data_val);
-    RECORD_ARG(5, sharedMem);
-    RECORD_ARG(6, stream);
+    RECORD_ARG(6, sharedMem);
+    RECORD_ARG(7, stream);
     dim3 cuda_gridDim = {gridDim.x, gridDim.y, gridDim.z};
     dim3 cuda_blockDim = {blockDim.x, blockDim.y, blockDim.z};
     void **cuda_args;
@@ -973,13 +974,14 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
                     sharedMem,
                     (void*)stream);
 
-    *result = cuLaunchKernel((CUfunction)resource_mg_get(&rm_functions, (void*)func),
+    (*result).ret = cuLaunchKernel((CUfunction)resource_mg_get(&rm_functions, (void*)func),
                             gridDim.x, gridDim.y, gridDim.z,
                             blockDim.x, blockDim.y, blockDim.z,
                             sharedMem,
                             resource_mg_get(&rm_streams, (void*)stream),
                             cuda_args, NULL);
 
+    (*result).ts = 1000;
     // *result = cudaLaunchKernel(
     //   resource_mg_get(&rm_functions, (void*)func),
     //   cuda_gridDim,
@@ -988,8 +990,8 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
     //   sharedMem,
     //   resource_mg_get(&rm_streams, (void*)stream));
     free(cuda_args);
-    RECORD_RESULT(integer, *result);
-    LOGE(LOG_DEBUG, "cudaLaunchKernel result: %d", *result);
+    RECORD_RESULT(integer, (*result).ret);
+    LOGE(LOG_DEBUG, "cudaLaunchKernel result: %d ts: %ld", (*result).ret, (*result).ts);
     return 1;
 }
 

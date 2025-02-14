@@ -989,7 +989,8 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
-    int result;
+    // int result;
+    timedint result;
     enum clnt_stat retval_1;
     size_t i;
     char *buf;
@@ -1030,12 +1031,12 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
                args[j],
                size);
     }
-    retval_1 = cuda_launch_kernel_1((uint64_t)func, rpc_gridDim, rpc_blockDim, rpc_args, sharedMem, (uint64_t)stream, &result, clnt);
+    retval_1 = cuda_launch_kernel_1(0, (uint64_t)func, rpc_gridDim, rpc_blockDim, rpc_args, sharedMem, (uint64_t)stream, &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
     free(rpc_args.mem_data_val);
-    return result;
+    return result.ret;
 }
 
 DEF_FN(cudaError_t, cudaSetDoubleForDevice, double*, d)

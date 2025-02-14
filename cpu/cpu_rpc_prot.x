@@ -2,9 +2,15 @@ typedef opaque mem_data<>;
 
 typedef unsigned hyper size_t;
 typedef unsigned hyper ptr;
+typedef unsigned hyper timestamp;
 typedef hyper ll;
 typedef opaque rpc_cuda_device_prop[1032];
 typedef opaque rpc_matmul_heuristic_result[96];
+
+struct timedint{
+    int ret;
+    timestamp ts;
+};
 
 struct dint {
     int i1;
@@ -315,8 +321,10 @@ program RPC_CD_PROG {
         int          CUDA_LAUNCH_COOPERATIVE_KERNEL(ptr, rpc_dim3, 
                           rpc_dim3, mem_data, size_t, ptr)                      = 314;
         /*int        CUDA_LAUNCH_HOST_FUNC(ptr, ptr, mem_data)                  = 316;*/
-        int          CUDA_LAUNCH_KERNEL(ptr, rpc_dim3, rpc_dim3,
-                          mem_data, size_t, ptr)                                = 317;
+        /*int          CUDA_LAUNCH_KERNEL(ptr, rpc_dim3, rpc_dim3,
+                          mem_data, size_t, ptr)                                = 317;*/
+        timedint    CUDA_LAUNCH_KERNEL(timestamp, ptr, rpc_dim3, rpc_dim3,
+                        mem_data, size_t, ptr)                                  = 317;
         /*d_result   CUDA_SET_DOUBLE_FOR_DEVICE(double)                         = 318;*/
         /*d_result   CUDA_SET_DOUBLE_FOR_HOST(double)                           = 319;*/
 

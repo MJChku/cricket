@@ -986,8 +986,8 @@ int cr_launch_kernel(void)
         if (record->function == CUDA_LAUNCH_KERNEL) {
             cuda_launch_kernel_1_argument *arg = 
               ((cuda_launch_kernel_1_argument*)record->arguments);
-            arg->arg4.mem_data_len = record->data_size;
-            arg->arg4.mem_data_val = record->data;
+            arg->arg5.mem_data_len = record->data_size;
+            arg->arg5.mem_data_val = record->data;
             if ((ret = cr_call_record(record)) != 0) {
                 LOGE(LOG_ERROR, "calling record function failed");
                 goto cleanup;
