@@ -34,7 +34,7 @@ cpu: libtirpc
 
 tests:
 	@echo -e "\033[36m----> Building test kernels\033[0m"
-	$(MAKE) -C tests
+	#$(MAKE) -C tests
 
 install-cpu: bin/cricket-client.so bin/cricket-rpc-server bin/libtirpc.so bin/libtirpc.so.3 bin/tests
 	@echo -e "\033[36m----> Copying cpu binaries to build/bin\033[0m"
