@@ -43,7 +43,8 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 cpu-elf2.c					\
 			 cpu-server-nvml.c			\
 			 cpu-server-cudnn.c         \
-			 cpu-server-cublaslt.c
+			 cpu-server-cublaslt.c	\
+			 cpu-server-exec.c
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c

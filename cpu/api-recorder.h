@@ -2,7 +2,39 @@
 #define _API_RECODER_H_
 
 #include <stdint.h>
+#include <time.h>
 #include "list.h"
+
+#define WITH_RECORDER
+
+#define NEX_RECORD_VOID_API  \
+    api_record_t *record; \
+    if (list_append(&nex_api_records, (void**)&record) != 0) { \
+        LOGE(LOG_ERROR, "list allocation failed."); \
+    } \
+    record->function = rqstp->rq_proc; \
+    record->arg_size = 0; \
+    record->arguments = NULL; \
+    record->data_size = 0; \
+    record->data = NULL; \
+    record->ts = ts;\
+    record->exe_status = 0; 
+#define NEX_RECORD_API(ARG_TYPE) \
+    api_record_t *record; \
+    ARG_TYPE *arguments; \
+    if (list_append(&api_records, (void**)&record) != 0) { \
+        LOGE(LOG_ERROR, "list allocation failed."); \
+    } \
+    if ( (arguments = malloc(sizeof(ARG_TYPE))) == NULL) { \
+        LOGE(LOG_ERROR, "list arguments allocation failed"); \
+    } \
+    record->function = rqstp->rq_proc; \
+    record->arg_size = sizeof(ARG_TYPE); \
+    record->arguments = arguments; \
+    record->data_size = 0; \
+    record->data = NULL;    \
+    record->ts = ts; \
+    record->exe_status = 0; 
 
 #ifdef WITH_RECORDER
 #define RECORD_VOID_API \
@@ -14,7 +46,7 @@
     record->arg_size = 0; \
     record->arguments = NULL; \
     record->data_size = 0; \
-    record->data = NULL;
+    record->data = NULL; 
 #define RECORD_API(ARG_TYPE) \
     api_record_t *record; \
     ARG_TYPE *arguments; \
@@ -28,7 +60,7 @@
     record->arg_size = sizeof(ARG_TYPE); \
     record->arguments = arguments; \
     record->data_size = 0; \
-    record->data = NULL;
+    record->data = NULL; 
 #define RECORD_RESULT(TYPE, RES) \
     record->result.TYPE = RES
 #define RECORD_SINGLE_ARG(ARG) \
@@ -64,6 +96,8 @@ typedef struct api_record {
     } result;
     void *data;
     size_t data_size;
+    uint64_t ts; // timestamp when this is triggered
+    int exe_status; // execution status 0 is not executed, 1 is executed
 } api_record_t;
 extern list api_records;
 
@@ -71,5 +105,16 @@ extern list api_records;
 void api_records_free(void);
 void api_records_print(void);
 void api_records_print_records(api_record_t *record);
+
+extern list nex_api_records;
+
+void* create_timestamp(void);
+uint64_t get_ns_duration(void* start, void* end);
+void ns_to_time_spec(uint64_t, struct timespec*);
+void wait_until(uint64_t);
+timestamp timestamp_now();
+
+static ptr virtual_ID = 0x1234567;
+ptr virtual_client_addr_gen(void);
 
 #endif

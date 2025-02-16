@@ -1,3 +1,4 @@
+#include "api-recorder.h"
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -637,13 +638,14 @@ cudaError_t cudaStreamQuery(cudaStream_t stream)
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
-    int result;
+    timedint result;
     enum clnt_stat retval_1;
-    retval_1 = cuda_stream_query_1((ptr)stream, &result, clnt);
+    retval_1 = cuda_stream_query_1((ptr)stream, timestamp_now(), &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
-    return result;
+    wait_until(result.ts);
+    return result.ret;
 }
 
 #if CUDART_VERSION >= 11000
@@ -655,14 +657,15 @@ cudaError_t cudaStreamSynchronize(cudaStream_t stream)
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
-    int result;
+    timedint result;
     enum clnt_stat retval_1;
     LOGE(LOG_DEBUG, "cudaStreamSynchronize(%p)", stream);
-    retval_1 = cuda_stream_synchronize_1((ptr)stream, &result, clnt);
+    retval_1 = cuda_stream_synchronize_1((ptr)stream, timestamp_now(), &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
-    return result;
+    wait_until(result.ts);
+    return result.ret;
 }
 
 cudaError_t cudaStreamWaitEvent(cudaStream_t stream, cudaEvent_t event, unsigned int flags)
@@ -670,13 +673,15 @@ cudaError_t cudaStreamWaitEvent(cudaStream_t stream, cudaEvent_t event, unsigned
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
-    int result;
+    timedint result;
     enum clnt_stat retval_1;
-    retval_1 = cuda_stream_wait_event_1((ptr)stream, (ptr)event, flags, &result, clnt);
+    
+    retval_1 = cuda_stream_wait_event_1((ptr)stream, (ptr)event, flags, timestamp_now(), &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
-    return result;
+    wait_until(result.ts);
+    return result.ret;
 }
 
 cudaError_t cudaThreadExchangeStreamCaptureMode(enum cudaStreamCaptureMode* mode)
@@ -701,16 +706,18 @@ cudaError_t cudaEventCreate(cudaEvent_t* event)
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
-    ptr_result result;
+    timed_ptr_result result;
     enum clnt_stat retval_1;
-    retval_1 = cuda_event_create_1(&result, clnt);
+    
+    retval_1 = cuda_event_create_1(timestamp_now(), &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
-    if (result.err == 0) {
-        *event = (void*)result.ptr_result_u.ptr;
+    if (result.ret.err == 0) {
+        *event = (void*)result.ret.ptr_result_u.ptr;
     }
-    return result.err;
+    wait_until(result.ts);
+    return result.ret.err;
 }
 
 cudaError_t cudaEventCreateWithFlags(cudaEvent_t* event, unsigned int  flags)
@@ -718,16 +725,17 @@ cudaError_t cudaEventCreateWithFlags(cudaEvent_t* event, unsigned int  flags)
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
-    ptr_result result;
+    timed_ptr_result result;
     enum clnt_stat retval_1;
-    retval_1 = cuda_event_create_with_flags_1(flags, &result, clnt);
+    retval_1 = cuda_event_create_with_flags_1(flags, timestamp_now(), &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
-    if (result.err == 0) {
-        *event = (void*)result.ptr_result_u.ptr;
+    if (result.ret.err == 0) {
+        *event = (void*)result.ret.ptr_result_u.ptr;
     }
-    return result.err;
+    wait_until(result.ts);
+    return result.ret.err;
 }
 
 cudaError_t cudaEventDestroy(cudaEvent_t event)
@@ -735,13 +743,14 @@ cudaError_t cudaEventDestroy(cudaEvent_t event)
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
-    int result;
+    timedint result;
     enum clnt_stat retval_1;
-    retval_1 = cuda_event_destroy_1((ptr)event, &result, clnt);
+    retval_1 = cuda_event_destroy_1((ptr)event, timestamp_now(), &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
-    return result;
+    wait_until(result.ts);
+    return result.ret;
 }
 
 cudaError_t cudaEventElapsedTime(float* ms, cudaEvent_t start, cudaEvent_t end)
@@ -749,16 +758,17 @@ cudaError_t cudaEventElapsedTime(float* ms, cudaEvent_t start, cudaEvent_t end)
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
-    float_result result;
+    timed_float_result result;
     enum clnt_stat retval_1;
-    retval_1 = cuda_event_elapsed_time_1((ptr)start, (ptr)end, &result, clnt);
+    retval_1 = cuda_event_elapsed_time_1((ptr)start, (ptr)end, timestamp_now(), &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
-    if (result.err == 0) {
-        *ms = result.float_result_u.data;
+    if (result.ret.err == 0) {
+        *ms = result.ret.float_result_u.data;
     }
-    return result.err;
+    wait_until(result.ts);
+    return result.ret.err;
 }
 
 cudaError_t cudaEventQuery(cudaEvent_t event)
@@ -766,13 +776,14 @@ cudaError_t cudaEventQuery(cudaEvent_t event)
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
-    int result;
+    timedint result;
     enum clnt_stat retval_1;
-    retval_1 = cuda_event_query_1((ptr)event, &result, clnt);
+    retval_1 = cuda_event_query_1((ptr)event, timestamp_now(), &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
-    return result;
+    wait_until(result.ts);
+    return result.ret;
 }
 
 cudaError_t cudaEventRecord(cudaEvent_t event, cudaStream_t stream)
@@ -780,13 +791,14 @@ cudaError_t cudaEventRecord(cudaEvent_t event, cudaStream_t stream)
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
-    int result;
+    timedint result;
     enum clnt_stat retval_1;
-    retval_1 = cuda_event_record_1((ptr)event, (ptr)stream, &result, clnt);
+    retval_1 = cuda_event_record_1((ptr)event, (ptr)stream, timestamp_now(), &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
-    return result;
+    wait_until(result.ts);
+    return result.ret;
 }
 
 cudaError_t cudaEventSynchronize(cudaEvent_t event)
@@ -794,15 +806,22 @@ cudaError_t cudaEventSynchronize(cudaEvent_t event)
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
-    int result = -1;
+    timedint result;
+    result.ret = -1;
     enum clnt_stat retval_1;
-    for (int i=0; result < 0 && i < 10; ++i) {
-        retval_1 = cuda_event_synchronize_1((ptr)event, &result, clnt);
-        if (retval_1 != RPC_SUCCESS) {
-            clnt_perror (clnt, "call failed");
-        }
+    // MJC comment: why put for all i < 10?
+    // for (int i=0; result < 0 && i < 10; ++i) {
+        // retval_1 = cuda_event_synchronize_1((ptr)event, &result, clnt);
+        // if (retval_1 != RPC_SUCCESS) {
+        //     clnt_perror (clnt, "call failed");
+        // }
+    // }
+    retval_1 = cuda_event_synchronize_1((ptr)event, timestamp_now(), &result, clnt);
+    if (retval_1 != RPC_SUCCESS) {
+        clnt_perror (clnt, "call failed");
     }
-    return result;
+    wait_until(result.ts);
+    return result.ret;
 }
 
 DEF_FN(cudaError_t, cudaDestroyExternalMemory, cudaExternalMemory_t, extMem)
@@ -1031,11 +1050,12 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
                args[j],
                size);
     }
-    retval_1 = cuda_launch_kernel_1(0, (uint64_t)func, rpc_gridDim, rpc_blockDim, rpc_args, sharedMem, (uint64_t)stream, &result, clnt);
+    retval_1 = cuda_launch_kernel_1((uint64_t)func, rpc_gridDim, rpc_blockDim, rpc_args, sharedMem, (uint64_t)stream, timestamp_now(), &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
     free(rpc_args.mem_data_val);
+    wait_until(result.ts);
     return result.ret;
 }
 

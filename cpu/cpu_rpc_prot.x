@@ -92,6 +92,11 @@ default:
     void;
 };
 
+struct timed_float_result{
+    float_result ret;
+    timestamp ts;
+};
+
 union d_result switch (int err) {
 case 0:
     double data;
@@ -125,6 +130,11 @@ case 0:
     ptr ptr;
 default:
     void;
+};
+
+struct timed_ptr_result{
+    ptr_result ret;
+    timestamp ts;
 };
 
 union pptr_result switch (int err) {
@@ -291,24 +301,25 @@ program RPC_CD_PROG {
         int_result   CUDA_STREAM_GET_FLAGS(ptr)                                 = 262;
         int_result   CUDA_STREAM_GET_PRIORITY(ptr)                              = 263;
         int_result   CUDA_STREAM_IS_CAPTURING(ptr)                              = 264;
-        int          CUDA_STREAM_QUERY(ptr)                                     = 265;
+        timedint     CUDA_STREAM_QUERY(ptr, timestamp)                          = 265;
         /*int        CUDA_STREAM_SET_ATTRIBUTE(ptr, int, ?)                     = 266;*/
-        int          CUDA_STREAM_SYNCHRONIZE(ptr)                               = 267;
-        int          CUDA_STREAM_WAIT_EVENT(ptr, ptr, int)                      = 268;
+        timedint          CUDA_STREAM_SYNCHRONIZE(ptr, timestamp)                               = 267;
+        timedint     CUDA_STREAM_WAIT_EVENT(ptr, ptr, int, timestamp)           = 268;
         int_result   CUDA_THREAD_EXCHANGE_STREAM_CAPTURE_MODE(int)              = 269;
         int          CUDA_STREAM_BEGIN_CAPTURE(ptr, int)                        = 270;
         ptr_result   CUDA_GRAPH_INSTANTIATE(ptr, size_t)                        = 271;
         mem_result   CUDA_GRAPH_GET_NODES(ptr, bool, size_t)                    = 272;
 
         /* ### Event Management ### */
-        ptr_result   CUDA_EVENT_CREATE(void)                                    = 280;
-        ptr_result   CUDA_EVENT_CREATE_WITH_FLAGS(int)                          = 281;
-        int          CUDA_EVENT_DESTROY(ptr)                                    = 282;
-        float_result CUDA_EVENT_ELAPSED_TIME(ptr, ptr)                          = 283;
-        int          CUDA_EVENT_QUERY(ptr)                                      = 284;
-        int          CUDA_EVENT_RECORD(ptr, ptr)                                = 285;
-        int          CUDA_EVENT_RECORD_WITH_FLAGS(ptr, ptr, int)                = 286;
-        int          CUDA_EVENT_SYNCHRONIZE(ptr)                                = 287;
+        /* ptr_result  CUDA_EVENT_CREATE(void)                    = 280; */
+        timed_ptr_result  CUDA_EVENT_CREATE(timestamp)                    = 280;
+        timed_ptr_result  CUDA_EVENT_CREATE_WITH_FLAGS(int, timestamp)          = 281;
+        timedint          CUDA_EVENT_DESTROY(ptr, timestamp)                    = 282;
+        timed_float_result CUDA_EVENT_ELAPSED_TIME(ptr, ptr, timestamp)         = 283;
+        timedint          CUDA_EVENT_QUERY(ptr, timestamp)                      = 284;
+        timedint          CUDA_EVENT_RECORD(ptr, ptr, timestamp)                = 285;
+        timedint         CUDA_EVENT_RECORD_WITH_FLAGS(ptr, ptr, int, timestamp)= 286;
+        timedint          CUDA_EVENT_SYNCHRONIZE(ptr, timestamp)                = 287;
 
         /* ### External Resource Interoperability ### */
         /* NOT IMPLEMENTED */
@@ -323,8 +334,8 @@ program RPC_CD_PROG {
         /*int        CUDA_LAUNCH_HOST_FUNC(ptr, ptr, mem_data)                  = 316;*/
         /*int          CUDA_LAUNCH_KERNEL(ptr, rpc_dim3, rpc_dim3,
                           mem_data, size_t, ptr)                                = 317;*/
-        timedint    CUDA_LAUNCH_KERNEL(timestamp, ptr, rpc_dim3, rpc_dim3,
-                        mem_data, size_t, ptr)                                  = 317;
+        timedint    CUDA_LAUNCH_KERNEL(ptr, rpc_dim3, rpc_dim3,
+                        mem_data, size_t, ptr, timestamp)                                  = 317;
         /*d_result   CUDA_SET_DOUBLE_FOR_DEVICE(double)                         = 318;*/
         /*d_result   CUDA_SET_DOUBLE_FOR_HOST(double)                           = 319;*/
 
