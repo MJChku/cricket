@@ -44,7 +44,8 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 cpu-server-nvml.c			\
 			 cpu-server-cudnn.c         \
 			 cpu-server-cublaslt.c	\
-			 cpu-server-exec.c
+			 cpu-server-exec.c	\
+			 timestamp.c
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c
@@ -65,7 +66,8 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 cpu-client-nvml.c          \
 			 cpu-client-cudnn.c			\
 			 cpu-client-cublas.c        \
-			 cpu-client-cublaslt.c
+			 cpu-client-cublaslt.c	\
+			 timestamp.c
 
 ifdef WITH_IB
 SRC_SERVER += cpu-ib.c

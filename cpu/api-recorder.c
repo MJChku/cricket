@@ -6,40 +6,6 @@
 #include "log.h"
 #include "list.h"
 
-void* create_timestamp(void){
-    struct timespec *ts = malloc(sizeof(struct timespec));
-    if (ts == NULL) {
-        LOGE(LOG_ERROR, "malloc timespec failed.");
-        return NULL;
-    }
-    clock_gettime(CLOCK_MONOTONIC, ts);
-    return ts;
-}
-
-uint64_t get_ns_duration(void* start, void* end){
-    struct timespec *start_ts = (struct timespec*)start;
-    struct timespec *end_ts = (struct timespec*)end;
-    uint64_t start_ns = start_ts->tv_sec * 1000000000 + start_ts->tv_nsec;
-    uint64_t end_ns = end_ts->tv_sec * 1000000000 + end_ts->tv_nsec;
-    return end_ns - start_ns;
-}
-
-void ns_to_time_spec(uint64_t ns, struct timespec *ts){
-    ts->tv_sec = ns / 1000000000;
-    ts->tv_nsec = ns % 1000000000;
-}
-
-void wait_until(uint64_t ns){
-    while(timestamp_now() < ns){
-        // busy wait
-    }
-}
-
-timestamp timestamp_now(){
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec * 1000000000 + ts.tv_nsec;
-}
 
 ptr virtual_client_addr_gen(void){
     return virtual_ID++;
@@ -61,6 +27,15 @@ static void api_records_free_args(void)
         record->arguments = NULL;
     }
 
+    for (size_t i = 0; i < nex_api_records.length; i++) {
+        if (list_at(&nex_api_records, i, (void**)&record) != 0) {
+            LOGE(LOG_ERROR, "list_at %zu returned an error.", i);
+            continue;
+        }
+        free(record->arguments);
+        record->arguments = NULL;
+    }
+
 }
 
 static void api_records_free_data(void)
@@ -68,6 +43,14 @@ static void api_records_free_data(void)
     api_record_t *record;
     for (size_t i = 0; i < api_records.length; i++) {
         if (list_at(&api_records, i, (void**)&record) != 0) {
+            LOGE(LOG_ERROR, "list_at %zu returned an error.", i);
+            continue;
+        }
+        free(record->data);
+        record->data = NULL;
+    }
+    for (size_t i = 0; i < nex_api_records.length; i++) {
+        if (list_at(&nex_api_records, i, (void**)&record) != 0) {
             LOGE(LOG_ERROR, "list_at %zu returned an error.", i);
             continue;
         }
@@ -82,6 +65,7 @@ void api_records_free(void)
     api_records_free_args();
     api_records_free_data();
     list_free(&api_records);
+    list_free(&nex_api_records);
 }
 
 size_t api_records_malloc_get_size(void *ptr)

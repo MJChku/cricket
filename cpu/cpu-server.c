@@ -296,6 +296,11 @@ void cricket_main(size_t prog_num, size_t vers_num)
         goto cleanup4;
     }
 
+    if (list_init(&nex_api_records, sizeof(api_record_t)) != 0) {
+        LOGE(LOG_ERROR, "initializing nex api recorder failed.");
+        goto cleanup4;
+    }
+
     if (server_driver_init(restore) != 0) {
         LOGE(LOG_ERROR, "initializing server_runtime failed.");
         goto cleanup2;

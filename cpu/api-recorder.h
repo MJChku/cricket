@@ -22,7 +22,7 @@
 #define NEX_RECORD_API(ARG_TYPE) \
     api_record_t *record; \
     ARG_TYPE *arguments; \
-    if (list_append(&api_records, (void**)&record) != 0) { \
+    if (list_append(&nex_api_records, (void**)&record) != 0) { \
         LOGE(LOG_ERROR, "list allocation failed."); \
     } \
     if ( (arguments = malloc(sizeof(ARG_TYPE))) == NULL) { \
@@ -107,12 +107,6 @@ void api_records_print(void);
 void api_records_print_records(api_record_t *record);
 
 extern list nex_api_records;
-
-void* create_timestamp(void);
-uint64_t get_ns_duration(void* start, void* end);
-void ns_to_time_spec(uint64_t, struct timespec*);
-void wait_until(uint64_t);
-timestamp timestamp_now();
 
 static ptr virtual_ID = 0x1234567;
 ptr virtual_client_addr_gen(void);

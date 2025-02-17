@@ -25,6 +25,7 @@
 #include "log.h"
 #include "oob.h"
 #include "mt-memcpy.h"
+#include "timestamp.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif //WITH_IB
@@ -709,6 +710,8 @@ cudaError_t cudaEventCreate(cudaEvent_t* event)
     timed_ptr_result result;
     enum clnt_stat retval_1;
     
+    // 1us- 10us
+    //fault here, the NEX stops all threads, cur = 1us
     retval_1 = cuda_event_create_1(timestamp_now(), &result, clnt);
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
@@ -716,6 +719,8 @@ cudaError_t cudaEventCreate(cudaEvent_t* event)
     if (result.ret.err == 0) {
         *event = (void*)result.ret.ptr_result_u.ptr;
     }
+    // NEX resume, cur = 1us
+    // cpu 11us
     wait_until(result.ts);
     return result.ret.err;
 }

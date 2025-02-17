@@ -2,6 +2,7 @@
 #include <time.h>
 #include "cpu-server-exec.h"
 #include "cpu_rpc_prot.h"
+#include "timestamp.h"
 
 /*
 Assume for now we only handle CUDA_LAUNCH_KERNEL and Synchronization of such calls
@@ -9,14 +10,17 @@ MemCpy MemCreate etc are serialized inline, not recorded
 */
 int serialize_all_till_now(uint64_t timestamp){
     uint64_t cur_ts = 0;
+    LOGE(LOG_DEBUG, "Serializing all calls till %lu; recorded %d", timestamp, nex_api_records.length);
     for(size_t i = 0; i < nex_api_records.length; i++){
         api_record_t *record;
-        if (list_at(&api_records, i, (void**)&record) != 0) {
+        if (list_at(&nex_api_records, i, (void**)&record) != 0) {
             LOGE(LOG_ERROR, "list_at %zu returned an error.", i);
             continue;
         }
+        LOGE(LOG_DEBUG, "Serializing %d ts:%lu", record->function, record->ts);
         if(record->ts > timestamp){
             // stop 
+            LOGE(LOG_DEBUG, "Reached the timestamp %lu", timestamp);
             break;
         }
         if(cur_ts == 0){
@@ -34,35 +38,76 @@ int serialize_all_till_now(uint64_t timestamp){
 
         // serialize this call
         switch (record->function){
+            int ret;
             case CUDA_STREAM_SYNCHRONIZE:
-                exe_cuda_stream_synchronize_1(record);
+                LOGE(LOG_DEBUG, "(Serialize) cudaStreamSynchronize @ %lu", cur_ts);
+                ret = exe_cuda_stream_synchronize_1(record);
+                if(ret != 0){
+                    LOGE(LOG_ERROR, "Error in (Serialize) cudaStreamSynchronize");
+                }
                 break;
             case CUDA_STREAM_WAIT_EVENT:
-                exe_cuda_stream_wait_event_1(record);
+                LOGE(LOG_DEBUG, "(Serialize) cudaStreamWaitEvent @ %lu", cur_ts);
+                ret = exe_cuda_stream_wait_event_1(record);
+                if(ret != 0){
+                    LOGE(LOG_ERROR, "Error in (Serialize) cudaStreamWaitEvent");
+                }
                 break;
              case CUDA_EVENT_CREATE:
-                exe_cuda_event_create_1(record);
+                LOGE(LOG_DEBUG, "(Serialize) cudaEventCreate @ %lu", cur_ts);
+                ret = exe_cuda_event_create_1(record);
+                if(ret != 0){
+                    LOGE(LOG_ERROR, "Error in (Serialize) cudaEventCreate");
+                }
                 break;
             case CUDA_EVENT_CREATE_WITH_FLAGS:
-                exe_cuda_event_create_with_flags_1(record);
+                LOGE(LOG_DEBUG, "(Serialize) cudaEventCreateWithFlags @ %lu", cur_ts);
+                ret = exe_cuda_event_create_with_flags_1(record);
+                if(ret != 0){
+                    LOGE(LOG_ERROR, "Error in (Serialize) cudaEventCreateWithFlags");
+                }
                 break;
             case CUDA_EVENT_DESTROY:
-                exe_cuda_event_destroy_1(record);
+                LOGE(LOG_DEBUG, "(Serialize) cudaEventDestroy @ %lu", cur_ts);
+                ret = exe_cuda_event_destroy_1(record);
+                if(ret != 0){
+                    LOGE(LOG_ERROR, "Error in (Serialize) cudaEventDestroy");
+                }
                 break;
             case CUDA_EVENT_QUERY:
-                exe_cuda_event_query_1(record);
+                LOGE(LOG_DEBUG, "(Serialize) cudaEventQuery @ %lu", cur_ts);
+                ret = exe_cuda_event_query_1(record);
+                if(ret != 0){
+                    LOGE(LOG_ERROR, "Error in (Serialize) cudaEventQuery");
+                }
                 break;
             case CUDA_EVENT_RECORD:
-                exe_cuda_event_record_1(record);
+                LOGE(LOG_DEBUG, "(Serialize) cudaEventRecord @ %lu", cur_ts);
+                ret = exe_cuda_event_record_1(record);
+                if(ret != 0){
+                    LOGE(LOG_ERROR, "Error in (Serialize) cudaEventRecord");
+                }
                 break;
             case CUDA_EVENT_RECORD_WITH_FLAGS:
-                exe_cuda_event_record_with_flags_1(record);
+                LOGE(LOG_DEBUG, "(Serialize) cudaEventRecordWithFlags @ %lu", cur_ts);
+                ret = exe_cuda_event_record_with_flags_1(record);
+                if(ret != 0){
+                    LOGE(LOG_ERROR, "Error in (Serialize) cudaEventRecordWithFlags");
+                }
                 break;
             case CUDA_EVENT_SYNCHRONIZE:
-                exe_cuda_event_synchronize_1(record);
+                LOGE(LOG_DEBUG, "(Serialize) cudaEventSynchronize @ %lu", cur_ts);
+                ret = exe_cuda_event_synchronize_1(record);
+                if(ret != 0){
+                    LOGE(LOG_ERROR, "Error in (Serialize) cudaEventSynchronize");
+                }
                 break;
             case CUDA_LAUNCH_KERNEL:
-                exe_cuda_launch_kernel_1(record);
+                LOGE(LOG_DEBUG, "(Serialize) cudaLaunchKernel @ %lu", cur_ts);
+                ret = exe_cuda_launch_kernel_1(record);
+                if(ret != 0){
+                    LOGE(LOG_ERROR, "Error in (Serialize) cudaLaunchKernel");
+                }
                 break;
             default:
                 LOGE(LOG_ERROR, "Unsupported function %d", record->function);
