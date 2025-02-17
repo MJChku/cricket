@@ -1,3 +1,4 @@
+#include <stdint.h>
 #define _GNU_SOURCE
 #include <cuda_runtime_api.h>
 #include <cuda.h>
@@ -706,14 +707,12 @@ bool_t cuda_stream_query_1_svc(ptr hStream, timestamp ts, timedint *result, stru
 int exe_cuda_stream_synchronize_1(api_record_t* record)
 {
     ptr stream = *(ptr*)(record->arguments);
-    void* start = create_timestamp();
+    // void* start = create_timestamp();
     record->result.integer = cudaStreamSynchronize(
       resource_mg_get(&rm_streams, (void*)stream));
-    void* end = create_timestamp();
-    record->ts = record->ts + get_ns_duration(start, end);
+    // void* end = create_timestamp();
+    // record->ts = record->ts + get_ns_duration(start, end);
     record->exe_status = 1;
-    free(start);
-    free(end);
     return record->result.integer;
 }
 
@@ -739,16 +738,14 @@ int exe_cuda_stream_wait_event_1(api_record_t* record)
     ptr stream = arg->arg1;
     ptr event = arg->arg2;
     int flags = arg->arg3;
-    void* start = create_timestamp();
+    // void* start = create_timestamp();
     record->result.integer = cudaStreamWaitEvent(
       resource_mg_get(&rm_streams, (void*)stream),
       resource_mg_get(&rm_events, (void*)event),
       flags);
-    void* end = create_timestamp();
-    record->ts = record->ts + get_ns_duration(start, end);
+    // void* end = create_timestamp();
+    // record->ts = record->ts + get_ns_duration(start, end);
     record->exe_status = 1;
-    free(start);
-    free(end);
     return record->result.integer;
 }
 
@@ -843,7 +840,7 @@ bool_t cuda_event_create_with_flags_1_svc(int flags, timestamp ts, timed_ptr_res
 {
     NEX_RECORD_API(int);
     RECORD_SINGLE_ARG(flags);
-    LOGE(LOG_DEBUG, "cudaEventCreateWithFlags");
+    LOGE(LOG_DEBUG, "Record cudaEventCreateWithFlags");
     // result->err = cudaEventCreateWithFlags((struct CUevent_st**)&result->ptr_result_u.ptr, flags);
     // if (resource_mg_create(&rm_events, (void*)result->ptr_result_u.ptr) != 0) {
     //     LOGE(LOG_ERROR, "error in resource manager");
@@ -870,25 +867,25 @@ int exe_cuda_event_destroy_1(api_record_t* record)
 
 bool_t cuda_event_destroy_1_svc(ptr event, timestamp ts, timedint *result, struct svc_req *rqstp)
 {
-    NEX_RECORD_API(ptr);
-    RECORD_SINGLE_ARG(event);
-    LOGE(LOG_DEBUG, "cudaEventDestroy");
-    // result->ret = cudaEventDestroy(
-    //   resource_mg_get(&rm_events, (void*)event));
+    // NEX_RECORD_API(ptr);
+    // RECORD_SINGLE_ARG(event);
+    LOGE(LOG_DEBUG, "Record cudaEventDestroy");
+    result->ret = cudaEventDestroy(
+      resource_mg_get(&rm_events, (void*)event));
     // RECORD_RESULT(integer, result->ret);
     result->ts = ts;
-    result->ret = 0;
+    // result->ret = 0;
     return 1;
 }
 
 bool_t cuda_event_elapsed_time_1_svc(ptr start, ptr end, timestamp ts, timed_float_result *result, struct svc_req *rqstp)
 {
     // there has to be a wait sync before calling this, so we don't need to serialize here
-    LOGE(LOG_DEBUG, "cudaEventElapsedTime");
     result->ret.err = cudaEventElapsedTime(&result->ret.float_result_u.data,
       resource_mg_get(&rm_events, (void*)start),
       resource_mg_get(&rm_events, (void*)end));
     result->ts = ts;
+    LOGE(LOG_DEBUG, "cudaEventElapsedTime elapsed:%f", result->ret.float_result_u.data);
     return 1;
 }
 
@@ -988,11 +985,11 @@ int exe_cuda_event_synchronize_1(api_record_t* record)
 {
     ptr arg1 = *(ptr*)(record->arguments);
     LOGE(LOG_DEBUG, "Exe cudaEventSynchronize");
-    void* start = create_timestamp();
+    // void* start = create_timestamp();
     record->result.integer = cudaEventSynchronize(
       resource_mg_get(&rm_events, (void*)arg1));
-    void* end = create_timestamp();
-    record->ts = record->ts + get_ns_duration(start, end);
+    // void* end = create_timestamp();
+    // record->ts = record->ts + get_ns_duration(start, end);
     return record->result.integer;
 }
 
@@ -1129,20 +1126,19 @@ int exe_cuda_launch_kernel_1(api_record_t* record)
                     cuda_args,
                     sharedMem,
                     (void*)stream);
-    void* ts_0 = create_timestamp();
+
+    // void* ts_0 = create_timestamp();
     record->result.integer = cuLaunchKernel((CUfunction)resource_mg_get(&rm_functions, (void*)func),
                             gridDim.x, gridDim.y, gridDim.z,
                             blockDim.x, blockDim.y, blockDim.z,
                             sharedMem,
                             resource_mg_get(&rm_streams, (void*)stream),
                             cuda_args, NULL);
-    void* ts_1 = create_timestamp();
-    uint64_t duration = get_ns_duration(ts_0, ts_1);
-    record->ts = record->ts + duration; // start_timestamp + duration
+    // void* ts_1 = create_timestamp();
+    // uint64_t duration = get_ns_duration(ts_0, ts_1);
+    // record->ts = record->ts + duration; // start_timestamp + duration
     record->exe_status = 1;
     free(cuda_args);
-    free(ts_0);
-    free(ts_1);
     return record->result.integer;
 }
 

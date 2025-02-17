@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <time.h>
 #include "cpu-server-exec.h"
+#include "api-recorder.h"
 #include "cpu_rpc_prot.h"
 #include "timestamp.h"
 
@@ -10,6 +11,8 @@ MemCpy MemCreate etc are serialized inline, not recorded
 */
 int serialize_all_till_now(uint64_t timestamp){
     uint64_t cur_ts = 0;
+    uint64_t start_ts = 0;
+    uint64_t real_start_ts = 0;
     LOGE(LOG_DEBUG, "Serializing all calls till %lu; recorded %d", timestamp, nex_api_records.length);
     for(size_t i = 0; i < nex_api_records.length; i++){
         api_record_t *record;
@@ -25,6 +28,8 @@ int serialize_all_till_now(uint64_t timestamp){
         }
         if(cur_ts == 0){
             cur_ts = record->ts;
+            start_ts = cur_ts;
+            real_start_ts = timestamp_now();
         }else{
             //wait some realtime until the next timestamp is reached
             uint64_t dur = record->ts - cur_ts;
@@ -32,11 +37,17 @@ int serialize_all_till_now(uint64_t timestamp){
                 struct timespec req;
                 ns_to_time_spec(dur, &req);
                 clock_nanosleep(CLOCK_MONOTONIC, 0, &req, NULL);
+                cur_ts = record->ts;
+            }else{
+                // actually smaller, means there is a bug in the timestamp
+                // but since we don't measure time, we actually don't know how long to wait for each API
+                // fine, skip for now
+                record->ts = cur_ts;
             }
-            cur_ts = record->ts;
         }
 
         // serialize this call
+        // LOGE(LOG_DEBUG, "Realtime just for preparing launch API call (us) %lu", real_ts/1000);
         switch (record->function){
             int ret;
             case CUDA_STREAM_SYNCHRONIZE:
@@ -114,6 +125,14 @@ int serialize_all_till_now(uint64_t timestamp){
                 break;
         }
 
-        cur_ts = record->ts;
+        // cur_ts = record->ts;
+        cur_ts = start_ts + timestamp_now() - real_start_ts;
+        record->ts = cur_ts;
+        LOGE(LOG_DEBUG, "Serialized %d, ts %lu", record->function, cur_ts);
     }
+
+    while(nex_api_records.length > 0){
+        list_rm(&nex_api_records, 0);
+    }
+    LOGE(LOG_DEBUG, "nex_api_recods length %d", nex_api_records.length);
 }

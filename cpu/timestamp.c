@@ -1,6 +1,27 @@
-#include "log.h"
 #include <stdlib.h>
+#include <stdio.h>
 #include "timestamp.h"
+#include "log.h"
+
+void nex_ctrl_init(){
+    char* mmio_base_str = getenv("ACCVM_MMIO_BASE");
+    printf("str: %s\n", mmio_base_str);
+    uintptr_t mmio_base = (uintptr_t)strtoul(mmio_base_str, NULL, 0);
+    // Turn on epoch scheduling
+    *(uint64_t*)(mmio_base+3*4096) = 0x1000;
+    nex_ctrl_addr = (uint64_t*)(mmio_base + 3*4096);
+}
+
+void nex_enter_simulation(){
+    // stop the simulation and jail break the current thread
+    *nex_ctrl_addr = 0x5000;
+}
+
+void nex_exit_simulation(){
+    // continue the simulation and remove the jail break
+    *nex_ctrl_addr = 0x6000;
+}
+
 
 void* create_timestamp(void){
     struct timespec *ts = malloc(sizeof(struct timespec));
@@ -29,6 +50,7 @@ void wait_until(uint64_t ns){
     while(timestamp_now() < ns){
         // busy wait
     }
+    printf("wait_until done to us %lu\n", ns/1000);
 }
 
 timestamp timestamp_now(){

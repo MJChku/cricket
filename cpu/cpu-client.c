@@ -21,6 +21,8 @@
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif // WITH_IB
+#include "timestamp.h"
+
 
 // static const char* LIBCUDA_PATH = "/lib64/libcuda.so";
 const char *LIBCUDA_PATH = "/usr/local/cuda/lib64/libcudart.so";
@@ -203,7 +205,10 @@ void __attribute__((constructor)) init_rpc(void)
         LOG(LOG_ERROR, "initilization of infiniband verbs failed.");
     }
 #endif // WITH_IB
+
+    nex_ctrl_init();
 }
+
 void __attribute__((destructor)) deinit_rpc(void)
 {
     enum clnt_stat retval_1;
