@@ -167,12 +167,17 @@ static void repair_connection(int signo)
 
 void __attribute__((constructor)) init_rpc(void)
 {
+    if(initialized) {
+        return;
+    }
+    
     enum clnt_stat retval_1;
     int result_1;
     int_result result_2;
     char *printmessage_1_arg1 = "hello";
 
     LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
+   
     init_log(LOG_LEVEL, __FILE__);
     rpc_connect();
 
@@ -379,6 +384,10 @@ void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun,
 
 void **__cudaRegisterFatBinary(void *fatCubin)
 {
+    if(initialized != 1) {
+        init_rpc();
+    }
+
     void **result;
     int rpc_result;
     enum clnt_stat retval_1;
