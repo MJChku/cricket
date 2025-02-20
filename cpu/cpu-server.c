@@ -16,6 +16,7 @@
 #include "log.h"
 #include "cpu-server-runtime.h"
 #include "cpu-server-driver.h"
+#include "cpu-server-exec.h"
 #include "rpc/xdr.h"
 #include "cr.h"
 #include "cpu-elf2.h"
@@ -61,6 +62,8 @@ bool_t rpc_printmessage_1_svc(char *argp, int *result, struct svc_req *rqstp)
 bool_t rpc_deinit_1_svc(int *result, struct svc_req *rqstp)
 {
     LOG(LOG_INFO, "RPC deinit requested.");
+    sync_records_empty();
+    nex_records_empty();
     //svc_exit();
     return 1;
 }
@@ -301,6 +304,23 @@ void cricket_main(size_t prog_num, size_t vers_num)
         goto cleanup4;
     }
 
+    if(list_init(&synced_stream_records, sizeof(sync_record_t)) != 0) {
+        LOGE(LOG_ERROR, "initializing synced stream records failed.");
+        goto cleanup4;
+    }
+    if(list_init(&active_stream_records, sizeof(sync_record_t)) != 0) {
+        LOGE(LOG_ERROR, "initializing active stream records failed.");
+        goto cleanup4;
+    }
+    if(list_init(&synced_event_records, sizeof(sync_record_t)) != 0) {
+        LOGE(LOG_ERROR, "initializing synced event records failed.");
+        goto cleanup4;
+    }
+    if(list_init(&active_event_records, sizeof(sync_record_t)) != 0) {
+        LOGE(LOG_ERROR, "initializing active event records failed.");
+        goto cleanup4;
+    }
+
     if (server_driver_init(restore) != 0) {
         LOGE(LOG_ERROR, "initializing server_runtime failed.");
         goto cleanup2;
@@ -360,6 +380,7 @@ void cricket_main(size_t prog_num, size_t vers_num)
     server_runtime_deinit();
  cleanup3:
     api_records_free();
+    sync_records_free();
  cleanup4:
     pmap_unset(prog, vers);
     svc_destroy(transp);

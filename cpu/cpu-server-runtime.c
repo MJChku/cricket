@@ -72,10 +72,10 @@ int server_runtime_init(int restore)
         ret &= 1;
     }
     if (!restore) {
-        // ret &= resource_mg_init(&rm_streams, 1);
-        // ret &= resource_mg_init(&rm_events, 1);
-        ret &= resource_mg_init(&rm_streams, 0);
-        ret &= resource_mg_init(&rm_events, 0);
+        ret &= resource_mg_init(&rm_streams, 1);
+        ret &= resource_mg_init(&rm_events, 1);
+        // ret &= resource_mg_init(&rm_streams, 0);
+        // ret &= resource_mg_init(&rm_events, 0);
         ret &= resource_mg_init(&rm_arrays, 1);
         ret &= memory_mg_init(&rm_memory, 1);
         ret &= resource_mg_init(&rm_graphs, 1);
@@ -529,7 +529,10 @@ bool_t cuda_stream_copy_attributes_1_svc(ptr dst, ptr src, int *result, struct s
 
 bool_t cuda_stream_create_1_svc(ptr_result *result, struct svc_req *rqstp)
 {
-    RECORD_VOID_API;
+    // fake ts, not used
+    uint64_t ts = 0;
+    NEX_RECORD_VOID_API;
+    record->exe_status = 1;
     LOGE(LOG_DEBUG, "cudaStreamCreate");
     result->err = cudaStreamCreate((void*)&result->ptr_result_u.ptr);
     if (resource_mg_create(&rm_streams, (void*)result->ptr_result_u.ptr) != 0) {
@@ -541,8 +544,11 @@ bool_t cuda_stream_create_1_svc(ptr_result *result, struct svc_req *rqstp)
 
 bool_t cuda_stream_create_with_flags_1_svc(int flags, ptr_result *result, struct svc_req *rqstp)
 {
-    RECORD_API(int);
+    // fake ts, not used
+    uint64_t ts = 0;
+    NEX_RECORD_API(int);
     RECORD_SINGLE_ARG(flags);
+    record->exe_status = 1;
     LOGE(LOG_DEBUG, "cudaStreamCreateWithFlags");
     result->err = cudaStreamCreateWithFlags((void*)&result->ptr_result_u.ptr, flags);
     if (resource_mg_create(&rm_streams, (void*)result->ptr_result_u.ptr) != 0) {
@@ -556,10 +562,12 @@ bool_t cuda_stream_create_with_flags_1_svc(int flags, ptr_result *result, struct
 
 bool_t cuda_stream_create_with_priority_1_svc(int flags, int priority, ptr_result *result, struct svc_req *rqstp)
 {
-    RECORD_API(cuda_stream_create_with_priority_1_argument);
+    // fake ts, not used
+    uint64_t ts = 0;
+    NEX_RECORD_API(cuda_stream_create_with_priority_1_argument);
     RECORD_ARG(1, flags);
     RECORD_ARG(2, priority);
-
+    record->exe_status = 1;
     LOGE(LOG_DEBUG, "cudaStreamCreateWithPriority");
     result->err = cudaStreamCreateWithPriority((void*)&result->ptr_result_u.ptr, flags, priority);
     if (resource_mg_create(&rm_streams, (void*)result->ptr_result_u.ptr) != 0) {
@@ -572,11 +580,13 @@ bool_t cuda_stream_create_with_priority_1_svc(int flags, int priority, ptr_resul
 
 bool_t cuda_stream_destroy_1_svc(ptr stream, int *result, struct svc_req *rqstp)
 {
-    RECORD_API(ptr);
+    uint64_t ts = 0;
+    NEX_RECORD_API(ptr);
     RECORD_SINGLE_ARG(stream);
     LOGE(LOG_DEBUG, "cudaStreamDestroy");
     *result = cudaStreamDestroy(resource_mg_get(&rm_streams, (void*)stream));
     RECORD_RESULT(integer, *result);
+    record->exe_status = 1;
     return 1;
 }
 
@@ -694,10 +704,15 @@ bool_t cuda_stream_is_capturing_1_svc(ptr stream, int_result *result, struct svc
 
 bool_t cuda_stream_query_1_svc(ptr hStream, timestamp ts, timedint *result, struct svc_req *rqstp)
 {
+    NEX_RECORD_API(ptr);
+    RECORD_SINGLE_ARG(hStream);
     LOGE(LOG_DEBUG, "cudaStreamQuery");
-    result->ret = cudaStreamQuery(
-      resource_mg_get(&rm_streams, (void*)hStream));
+    // result->ret = cudaStreamQuery(
+    //   resource_mg_get(&rm_streams, (void*)hStream));
+    serialize_all_till_now(ts);
+    result->ret = record->result.integer;
     result->ts = ts;
+    rm_executed_api();
     return 1;
 }
 
@@ -730,6 +745,7 @@ bool_t cuda_stream_synchronize_1_svc(ptr stream, timestamp ts, timedint *result,
     serialize_all_till_now(ts);
     result->ret = record->result.integer;
     result->ts = record->ts;
+    rm_executed_api();
     return 1;
 }
 int exe_cuda_stream_wait_event_1(api_record_t* record)
@@ -762,8 +778,7 @@ bool_t cuda_stream_wait_event_1_svc(ptr stream, ptr event, int flags, timestamp 
     //   flags);
     // RECORD_RESULT(integer, *result);
 
-    // blocking call and serialize point
-    serialize_all_till_now(ts);
+    // this is a async call !!!
     result->ret = record->result.integer; 
     result->ts = record->ts;
 
@@ -797,43 +812,49 @@ bool_t cuda_stream_begin_capture_1_svc(ptr stream, int mode, int *result, struct
 /* ### Event Management ### */
 int exe_cuda_event_create_1(api_record_t* record)
 {
-    ptr cuda_ptr = 0;
-    LOGE(LOG_DEBUG, "Exe cudaEventCreate");
-    record->result.ptr_result_u.err = cudaEventCreate((struct CUevent_st**)&cuda_ptr);
-    if(resource_mg_add_sorted(&rm_events, (void*)record->result.ptr_result_u.ptr_result_u.ptr, (void*)cuda_ptr) != 0){
-        LOGE(LOG_ERROR, "error in resource manager at cuda_event_create_1");
-    }
-    return record->result.ptr_result_u.err;
+    LOGE(LOG_ERROR, "UNEXPECTED CALL TO exe_cuda_event_create_1");
+    return 0;
+    // ptr cuda_ptr = 0;
+    // LOGE(LOG_DEBUG, "Exe cudaEventCreate");
+    // record->result.ptr_result_u.err = cudaEventCreate((struct CUevent_st**)&cuda_ptr);
+    // if(resource_mg_add_sorted(&rm_events, (void*)record->result.ptr_result_u.ptr_result_u.ptr, (void*)cuda_ptr) != 0){
+    //     LOGE(LOG_ERROR, "error in resource manager at cuda_event_create_1");
+    // }
+    // return record->result.ptr_result_u.err;
 }
 
 bool_t cuda_event_create_1_svc(timestamp ts, timed_ptr_result *result, struct svc_req *rqstp)
 {
     NEX_RECORD_VOID_API;
-    LOGE(LOG_DEBUG, "Record cudaEventCreate %lu", ts);
 
-    // result->err = cudaEventCreate((struct CUevent_st**)&result->ptr_result_u.ptr);
-    // if (resource_mg_create(&rm_events, (void*)result->ptr_result_u.ptr) != 0) {
-        // LOGE(LOG_ERROR, "error in resource manager");
-    // }
-    // RECORD_RESULT(ptr_result_u, *result);
-
-    result->ret.ptr_result_u.ptr = virtual_client_addr_gen();
-    result->ret.err = 0;
-    result->ts = ts;
-
+    result->ret.err = cudaEventCreate((struct CUevent_st**)&result->ret.ptr_result_u.ptr);
+    if (resource_mg_create(&rm_events, (void*)result->ret.ptr_result_u.ptr) != 0) {
+        LOGE(LOG_ERROR, "error in resource manager");
+    }
     RECORD_RESULT(ptr_result_u, result->ret);
+
+    // result->ret.ptr_result_u.ptr = virtual_client_addr_gen();
+    // result->ret.err = 0;
+    // RECORD_RESULT(ptr_result_u, result->ret);
+
+    result->ts = ts;
+    record->exe_status = 1;
+    
+    LOGE(LOG_DEBUG, "Record cudaEventCreate %lu. Fake id %p", ts, record->result.ptr_result_u.ptr_result_u.ptr);
     return 1;
 }
 
 int exe_cuda_event_create_with_flags_1(api_record_t* record)
 {
-    int arg1 = *(int*)(record->arguments);
-    ptr cuda_ptr = 0;
-    record->result.ptr_result_u.err = cudaEventCreateWithFlags((struct CUevent_st**)&cuda_ptr, arg1);
-    if(resource_mg_add_sorted(&rm_events, (void*)record->result.ptr_result_u.ptr_result_u.ptr, (void*)cuda_ptr) != 0){
-        LOGE(LOG_ERROR, "error in resource manager at cuda_event_create_with_flags_1");
-    }
-    return record->result.ptr_result_u.err;
+    LOGE(LOG_ERROR, "UNEXPECTED CALL TO exe_cuda_event_create_with_flags_1");
+    return 0;
+    // int arg1 = *(int*)(record->arguments);
+    // ptr cuda_ptr = 0;
+    // record->result.ptr_result_u.err = cudaEventCreateWithFlags((struct CUevent_st**)&cuda_ptr, arg1);
+    // if(resource_mg_add_sorted(&rm_events, (void*)record->result.ptr_result_u.ptr_result_u.ptr, (void*)cuda_ptr) != 0){
+    //     LOGE(LOG_ERROR, "error in resource manager at cuda_event_create_with_flags_1");
+    // }
+    // return record->result.ptr_result_u.err;
 }
 
 bool_t cuda_event_create_with_flags_1_svc(int flags, timestamp ts, timed_ptr_result *result, struct svc_req *rqstp)
@@ -841,40 +862,39 @@ bool_t cuda_event_create_with_flags_1_svc(int flags, timestamp ts, timed_ptr_res
     NEX_RECORD_API(int);
     RECORD_SINGLE_ARG(flags);
     LOGE(LOG_DEBUG, "Record cudaEventCreateWithFlags");
-    // result->err = cudaEventCreateWithFlags((struct CUevent_st**)&result->ptr_result_u.ptr, flags);
-    // if (resource_mg_create(&rm_events, (void*)result->ptr_result_u.ptr) != 0) {
-    //     LOGE(LOG_ERROR, "error in resource manager");
-    // }
-    // RECORD_RESULT(ptr_result_u, *result);
-    result->ret.ptr_result_u.ptr = virtual_client_addr_gen();
-    result->ret.err = 0;
-    result->ts = ts;
+    result->ret.err = cudaEventCreateWithFlags((struct CUevent_st**)&result->ret.ptr_result_u.ptr, flags);
+    if (resource_mg_create(&rm_events, (void*)result->ret.ptr_result_u.ptr) != 0) {
+        LOGE(LOG_ERROR, "error in resource manager");
+    }
     RECORD_RESULT(ptr_result_u, result->ret);
+
+    // result->ret.ptr_result_u.ptr = virtual_client_addr_gen();
+    // result->ret.err = 0;
+    // RECORD_RESULT(ptr_result_u, result->ret);
+    result->ts = ts;
+    record->exe_status = 1;
     return 1;
 }
 
 int exe_cuda_event_destroy_1(api_record_t* record)
 {
-    ptr arg1 = *(ptr*)(record->arguments);
-    record->result.integer = cudaEventDestroy(
-      resource_mg_get(&rm_events, (void*)arg1));
-
-    // if(resource_mg_remove(&rm_events, arg1) != 0){
-    //     LOGE(LOG_ERROR, "error in resource manager at cuda_event_destroy_1");
-    // }
-    return record->result.integer;
+    return 0;
+    // ptr arg1 = *(ptr*)(record->arguments);
+    // record->result.integer = cudaEventDestroy(
+    //   resource_mg_get(&rm_events, (void*)arg1));
+    // return record->result.integer;
 }
 
 bool_t cuda_event_destroy_1_svc(ptr event, timestamp ts, timedint *result, struct svc_req *rqstp)
 {
-    // NEX_RECORD_API(ptr);
-    // RECORD_SINGLE_ARG(event);
+    NEX_RECORD_API(ptr);
+    RECORD_SINGLE_ARG(event);
     LOGE(LOG_DEBUG, "Record cudaEventDestroy");
     result->ret = cudaEventDestroy(
       resource_mg_get(&rm_events, (void*)event));
-    // RECORD_RESULT(integer, result->ret);
+    RECORD_RESULT(integer, result->ret);
     result->ts = ts;
-    // result->ret = 0;
+    record->exe_status = 1;
     return 1;
 }
 
@@ -911,7 +931,7 @@ bool_t cuda_event_query_1_svc(ptr event, timestamp ts, timedint *result, struct 
     serialize_all_till_now(ts);
     result->ret = record->result.integer;
     result->ts = record->ts;
-
+    rm_executed_api();
     return 1;
 }
 
@@ -1005,7 +1025,9 @@ bool_t cuda_event_synchronize_1_svc(ptr event, timestamp ts, timedint *result, s
     // serialization point
     serialize_all_till_now(ts);
     result->ret = record->result.integer;
+    LOGE(LOG_DEBUG, "cudaEventSynchronize time start %lu, end %lu, record %p", ts, record->ts, record);
     result->ts = record->ts;
+    rm_executed_api();
     return 1;
 }
 

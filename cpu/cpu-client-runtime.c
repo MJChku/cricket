@@ -1642,9 +1642,10 @@ void* ib_thread(void* arg)
 
 extern char server[256];
 #define MT_MEMCPY_MEM_PER_THREAD (128*1024*1024)
-#define WITH_MT_MEMCPY
+// #define WITH_MT_MEMCPY
 cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind)
 {
+    nex_enter_simulation();
 #ifdef WITH_API_CNT
     api_call_cnt++;
     memcpy_cnt += count;
@@ -1790,6 +1791,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
         LOGE(LOG_ERROR, "unknown kind");
     }
 cleanup:
+    nex_exit_simulation();
     return ret;
 }
 DEF_FN(cudaError_t, cudaMemcpy2D, void*, dst, size_t, dpitch, const void*, src, size_t, spitch, size_t, width, size_t, height, enum cudaMemcpyKind, kind)
