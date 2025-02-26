@@ -7,6 +7,15 @@ typedef hyper ll;
 typedef opaque rpc_cuda_device_prop[1032];
 typedef opaque rpc_matmul_heuristic_result[96];
 
+struct rpc_kernel_info {
+    opaque name<>;                /* Variable-length string */
+    uint32_t param_size;          /* Use fixed 32-bit integer instead of size_t */
+    uint32_t param_num;           /* Number of parameters */
+    opaque param_offsets<>;     /* Variable-length array of parameter offsets */
+    opaque param_sizes<>;       /* Variable-length array of parameter sizes */
+};
+
+
 struct timedint{
     int ret;
     timestamp ts;
@@ -243,7 +252,7 @@ program RPC_CD_PROG {
         int          rpc_deinit(void)                                             = 1;
         int          rpc_printmessage(string)                                     = 2;
         int          rpc_dlopen(string)                                           = 3;
-        ptr_result   rpc_register_function(ptr, ptr, string, string, int)        = 50;
+        ptr_result   rpc_register_function(ptr, ptr, string, string, int, rpc_kernel_info)  = 50;
         int          rpc_elf_load(mem_data, ptr)                                 = 51;
         int          rpc_elf_unload(ptr)                                         = 52;
         int          rpc_register_var(ptr, ptr, ptr, string, int, size_t, int, int) = 53;

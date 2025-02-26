@@ -1119,6 +1119,7 @@ bool_t cuda_launch_cooperative_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3
 
 int exe_cuda_launch_kernel_1(api_record_t* record)
 {
+    void* ts_0 = create_timestamp();
     cuda_launch_kernel_1_argument *arg = (cuda_launch_kernel_1_argument*)record->arguments;
     ptr func = arg->arg1;
     rpc_dim3 gridDim = arg->arg2;
@@ -1135,6 +1136,7 @@ int exe_cuda_launch_kernel_1(api_record_t* record)
     size_t param_num = *((size_t*)args.mem_data_val);
     arg_offsets = (uint16_t*)(args.mem_data_val+sizeof(size_t));
     cuda_args = malloc(param_num*sizeof(void*));
+    // if we get metainfo here and don't care about actually data, we can just malloc the memory here, without swaping and out. 
     for (size_t i = 0; i < param_num; ++i) {
         cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
         *(void**)cuda_args[i] = memory_mg_get(&rm_memory, *(void**)cuda_args[i]);
@@ -1149,16 +1151,19 @@ int exe_cuda_launch_kernel_1(api_record_t* record)
                     sharedMem,
                     (void*)stream);
 
-    // void* ts_0 = create_timestamp();
+    void* ts_1 = create_timestamp();
     record->result.integer = cuLaunchKernel((CUfunction)resource_mg_get(&rm_functions, (void*)func),
                             gridDim.x, gridDim.y, gridDim.z,
                             blockDim.x, blockDim.y, blockDim.z,
                             sharedMem,
                             resource_mg_get(&rm_streams, (void*)stream),
                             cuda_args, NULL);
-    // void* ts_1 = create_timestamp();
-    // uint64_t duration = get_ns_duration(ts_0, ts_1);
-    // record->ts = record->ts + duration; // start_timestamp + duration
+    uint64_t duration = get_ns_duration(ts_0, ts_1);
+    
+    if(record->result.integer != CUDA_SUCCESS) {
+        LOGE(LOG_ERROR, "Exe cudaLaunchKernel failed");
+    }
+    record->ts = duration; // start_timestamp + duration
     record->exe_status = 1;
     free(cuda_args);
     return record->result.integer;
@@ -1951,12 +1956,13 @@ out:
     return 1;
 }
 
-bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, struct svc_req *rqstp)
+bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, timestamp ts, timed_mem_result *result, struct svc_req *rqstp)
 {
     //Does not need to be recorded because doesn't change device state
     LOGE(LOG_DEBUG, "cudaMemcpyDtoH(%p, %zu)", ptr, size);
     result->mem_result_u.data.mem_data_len = size;
     result->mem_result_u.data.mem_data_val = malloc(size);
+
 #ifdef WITH_MEMCPY_REGISTER
     if ((result->err = cudaHostRegister(result->mem_result_u.data.mem_data_val,
                                         size, cudaHostRegisterMapped)) != cudaSuccess) {

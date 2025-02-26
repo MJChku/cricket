@@ -366,8 +366,44 @@ void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun,
     } else {
         LOGE(LOG_DEBUG, "request to register known function: \"%s\"",
              deviceName);
+        
+#ifdef RECORD_KERNEL_INFO
+        kernel_info_t *info;
+        int found_kernel = 0;
+        
+        for (size_t i=0; i < kernel_infos.length; ++i) {
+            if (list_at(&kernel_infos, i, (void**)&info) != 0) {
+                LOGE(LOG_ERROR, "error gettint element at %d", i);
+                return;
+            }
+            if (hostFun != NULL && info != NULL && info->host_fun == hostFun) {
+                found_kernel = 1;
+                break;
+            }
+        }
+
+        if (!found_kernel) {
+            LOGE(LOG_ERROR, "request to register unknown kernel.");
+            return;
+        }
+
+        rpc_kernel_info kernel_info;
+        kernel_info.name.name_val = info->name;
+        kernel_info.name.name_len = strlen(info->name);
+        kernel_info.param_size = info->param_size;
+        kernel_info.param_num = info->param_num;
+        kernel_info.param_offsets.param_offsets_val = (char*)info->param_offsets;
+        kernel_info.param_offsets.param_offsets_len = info->param_num*sizeof(uint16_t);
+        kernel_info.param_sizes.param_sizes_val = (char*)info->param_sizes;
+        kernel_info.param_sizes.param_sizes_len = info->param_num*sizeof(uint16_t);
+#else 
+    rpc_kernel_info kernel_info;
+    memset(&kernel_info, 0, sizeof(kernel_info));
+
+#endif
         retval_1 = rpc_register_function_1((ptr)fatCubinHandle, (ptr)hostFun,
-                                           deviceFun, (char*)deviceName, thread_limit,
+                                           deviceFun, (char*
+                                           )deviceName, thread_limit, kernel_info,
                                            &result, clnt);
         if (retval_1 != RPC_SUCCESS) {
             LOGE(LOG_ERROR, "call failed.");

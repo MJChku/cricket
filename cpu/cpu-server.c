@@ -299,6 +299,10 @@ void cricket_main(size_t prog_num, size_t vers_num)
         goto cleanup4;
     }
 
+    if (list_init(&database_records, sizeof(api_record_t)) != 0) {
+        LOGE(LOG_ERROR, "initializing database recorder failed.");
+        goto cleanup4;
+    }
     if (list_init(&nex_api_records, sizeof(api_record_t)) != 0) {
         LOGE(LOG_ERROR, "initializing nex api recorder failed.");
         goto cleanup4;
@@ -381,6 +385,7 @@ void cricket_main(size_t prog_num, size_t vers_num)
  cleanup3:
     api_records_free();
     sync_records_free();
+    deinit_server_exec();
  cleanup4:
     pmap_unset(prog, vers);
     svc_destroy(transp);

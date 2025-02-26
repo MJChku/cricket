@@ -38,6 +38,9 @@ typedef struct memory_mg_t {
 } memory_mg;
 
 
+// Kernel Infos
+resource_mg rm_kernel_infos; 
+
 //Runtime API RMs
 resource_mg rm_streams;
 resource_mg rm_events;

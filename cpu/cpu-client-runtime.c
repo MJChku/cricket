@@ -1646,6 +1646,7 @@ extern char server[256];
 cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind)
 {
     nex_enter_simulation();
+    printf("timestamp now: %ld\n", timestamp_now());
 #ifdef WITH_API_CNT
     api_call_cnt++;
     memcpy_cnt += count;
@@ -1791,6 +1792,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
         LOGE(LOG_ERROR, "unknown kind");
     }
 cleanup:
+    printf("exit timestamp now: %ld\n", timestamp_now());
     nex_exit_simulation();
     return ret;
 }

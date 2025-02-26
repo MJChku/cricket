@@ -14,6 +14,7 @@ ptr virtual_client_addr_gen(void){
 list api_records;
 
 list nex_api_records;
+list database_records;
 
 static void api_records_free_args(void)
 {
@@ -66,6 +67,7 @@ void api_records_free(void)
     api_records_free_data();
     list_free(&api_records);
     list_free(&nex_api_records);
+    list_free(&database_records);
 }
 
 size_t api_records_malloc_get_size(void *ptr)

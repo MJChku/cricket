@@ -1,9 +1,14 @@
+#pragma  once
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include "api-recorder.h"
 #include "resource-mg.h"
 #include "log.h"
 
+void process_database_records();
+
+void deinit_server_exec();
 // don't delete record in the serialize_all_till_now function
 // because the list implementation is not a linked list
 int serialize_all_till_now(uint64_t timestamp);
@@ -21,7 +26,6 @@ int exe_cuda_event_record_1(api_record_t* record);
 int exe_cuda_event_record_with_flags_1(api_record_t* record);
 int exe_cuda_event_synchronize_1(api_record_t* record);
 int exe_cuda_launch_kernel_1(api_record_t* record);
-
 
 typedef struct sync_record_t {
     ptr real_id;
@@ -57,3 +61,19 @@ extern list synced_event_records;
 void sync_records_free(void);
 void sync_records_empty(void);
 void nex_records_empty(void);
+
+
+// for constructing profiling database
+typedef struct {
+    uint64_t metricId;
+    const char* metricName;
+    double sumValue;      // Sum of per-instruction average values for this metric
+    size_t appliedCount;  // Number of instructions where this metric was observed
+    double ratio;
+    double averageValue;
+} metric_feature_t;
+
+int init_metric_database(const char*, size_t);
+int dump_metrics_to_database(metric_feature_t*, size_t, uint64_t);
+int deinit_metric_database(void);
+

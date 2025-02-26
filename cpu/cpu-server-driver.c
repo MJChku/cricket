@@ -9,6 +9,7 @@
 #define WITH_RECORDER
 #include "api-recorder.h"
 #include "gsched.h"
+#include "cpu-server-exec.h"
 
 int server_driver_init(int restore)
 {
@@ -24,7 +25,9 @@ int server_driver_init(int restore)
         ret &= resource_mg_init(&rm_globals, 0);
         ret &= resource_mg_init(&rm_devices, 1);
         ret &= resource_mg_init(&rm_contexts, 1);
+        ret &= resource_mg_init(&rm_kernel_infos, 0);
     } else {
+        ret &= resource_mg_init(&rm_kernel_infos, 0);
         ret &= resource_mg_init(&rm_modules, 0);
         ret &= resource_mg_init(&rm_functions, 0);
         ret &= resource_mg_init(&rm_globals, 0);
@@ -118,7 +121,7 @@ bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
 }
 
 bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* deviceFun,
-                            char* deviceName, int thread_limit, ptr_result *result, struct svc_req *rqstp)
+                            char* deviceName, int thread_limit, rpc_kernel_info kernel_info, ptr_result *result, struct svc_req *rqstp)
 {
     void *module = NULL;
     RECORD_API(rpc_register_function_1_argument);
@@ -149,6 +152,26 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
     if (resource_mg_add_sorted(&rm_functions, (void*)hostFun, (void*)result->ptr_result_u.ptr) != 0) {
         LOGE(LOG_ERROR, "error in resource manager");
     }
+
+    // add kernel info to resource manager
+
+#ifdef RECORD_KERNEL_INFO
+    kernel_info_t* info = malloc(sizeof(kernel_info_t));
+    info->name = malloc(kernel_info.name.name_len);
+    memcpy(info->name, kernel_info.name.name_val, kernel_info.name.name_len);
+    info->param_size = kernel_info.param_size;
+    info->param_num = kernel_info.param_num;
+
+    info->param_offsets = malloc(kernel_info.param_offsets.param_offsets_len);
+    memcpy(info->param_offsets, kernel_info.param_offsets.param_offsets_val, kernel_info.param_offsets.param_offsets_len);
+    info->param_sizes = malloc(kernel_info.param_sizes.param_sizes_len);
+    memcpy(info->param_sizes, kernel_info.param_sizes.param_sizes_val, kernel_info.param_sizes.param_sizes_len);
+
+    if(resource_mg_add_sorted(&rm_kernel_infos,  (void*)hostFun, info) != 0) {
+        LOGE(LOG_ERROR, "error in resource manager");
+    }
+#endif
+
     GSCHED_RELEASE;
     RECORD_RESULT(ptr_result_u, *result);
     return 1;

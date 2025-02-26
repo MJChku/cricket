@@ -1,6 +1,8 @@
-#include "list.h"
-#include <driver_types.h>
+#include "log.h"
 #define _GNU_SOURCE
+#include "list.h"
+#include <cuda_runtime.h>
+#include <driver_types.h>
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include <stdint.h>
@@ -9,6 +11,12 @@
 #include "api-recorder.h"
 #include "cpu_rpc_prot.h"
 #include "timestamp.h"
+#include <cupti.h>
+#include <cupti_profiler_target.h>
+#include <nvperf_host.h>
+#include <nvperf_target.h>
+#include <cupti_target.h>
+#include <cupti_sass_metrics.h>
 
 
 static uint64_t cur_ts = 0;
@@ -278,6 +286,7 @@ int sync_all_actions()
     }
     return 0;
 }
+
 /*
 Assume for now we only handle CUDA_LAUNCH_KERNEL and Synchronization of such calls
 MemCpy MemCreate etc are serialized inline, not recorded
@@ -419,13 +428,19 @@ int rm_executed_api(){
             continue;
         }
         if(record->exe_status == 1){
+            if(record->function == CUDA_LAUNCH_KERNEL){
+                record->exe_status = 0;
+                list_append_copy(&database_records, (void*)record);
+            }
             list_rm(&nex_api_records, i);
             i--;
         }
     }
+
+    process_database_records();
+
     return 0;
 }
-
 
 void sync_records_free(){
     list_free(&synced_stream_records);
@@ -445,18 +460,299 @@ void sync_records_empty(){
     active_event_records.length = 0;
 }
 
+#define CHECK_CU(err) \
+    if (err != CUDA_SUCCESS) { \
+        LOGE(LOG_DEBUG, "CUDA Error: %d at %s:%d\n", err, __FILE__, __LINE__); \
+        exit(-1); \
+    }
 
-// case CUDA_STREAM_SYNCHRONIZE:
-//             LOGE(LOG_DEBUG, "(Serialize) cudaStreamSynchronize @ %lu", cur_ts);
-//             ret = exe_cuda_stream_synchronize_1(record);
-//             if(ret != 0){
-//                 LOGE(LOG_ERROR, "Error in (Serialize) cudaStreamSynchronize");
-//             }
-//             break;
-// case CUDA_EVENT_SYNCHRONIZE:
-//     LOGE(LOG_DEBUG, "(Serialize) cudaEventSynchronize @ %lu", cur_ts);
-//     ret = exe_cuda_event_synchronize_1(record);
-//     if(ret != 0){
-//         LOGE(LOG_ERROR, "Error in (Serialize) cudaEventSynchronize");
-//     }
-//     break;
+#define CHECK_CUPTI(err) \
+    if (err != CUPTI_SUCCESS) { \
+        LOGE(LOG_DEBUG, "CUPTI Error: %d at %s:%d\n", err, __FILE__, __LINE__); \
+        exit(-1); \
+    }
+
+
+static CUpti_SassMetrics_MetricDetails* supportedMetrics;
+static size_t numOfMetrics=0;
+static size_t deviceIndex=0;
+static uint8_t outputGranularity=CUPTI_SASS_METRICS_OUTPUT_GRANULARITY_GPU;
+static int supported_metric_initialized = 0;
+
+const char* search_metric_name(CUpti_SassMetrics_MetricDetails* _supportedMetrics, size_t _numOfMetrics, uint64_t metricId){
+    LOGE(LOG_DEBUG, "Searching for metric name for %p, total %d, id %lu", _supportedMetrics, _numOfMetrics, metricId );
+    for(size_t i = 0; i < _numOfMetrics; i++){
+        if(_supportedMetrics[i].metricId == metricId){
+            return _supportedMetrics[i].pMetricName;
+        }
+    }
+    return NULL;
+}
+
+void init_sass_metrics(){
+    if(supported_metric_initialized == 1){
+        return;
+    }
+
+    CUpti_Profiler_Initialize_Params profilerParams = {CUpti_Profiler_Initialize_Params_STRUCT_SIZE};
+    profilerParams.pPriv = NULL;
+    CHECK_CUPTI(cuptiProfilerInitialize(&profilerParams));
+    
+    CUpti_Device_GetChipName_Params getChipParams;
+    memset(&getChipParams, 0, sizeof(getChipParams));
+    getChipParams.structSize = CUpti_Device_GetChipName_Params_STRUCT_SIZE;
+    CHECK_CUPTI(cuptiDeviceGetChipName(&getChipParams));
+
+    // Get the number of available SASS metrics
+    CUpti_SassMetrics_GetNumOfMetrics_Params getNumOfMetricParams;
+    memset(&getNumOfMetricParams, 0, sizeof(getNumOfMetricParams));
+    getNumOfMetricParams.pChipName = getChipParams.pChipName;
+    getNumOfMetricParams.structSize = CUpti_SassMetrics_GetNumOfMetrics_Params_STRUCT_SIZE;
+    CHECK_CUPTI(cuptiSassMetricsGetNumOfMetrics(&getNumOfMetricParams));
+
+    numOfMetrics = getNumOfMetricParams.numOfMetrics;
+
+    // initalize database
+    init_metric_database(getChipParams.pChipName, numOfMetrics);
+
+    supportedMetrics = 
+        (CUpti_SassMetrics_MetricDetails*) malloc(getNumOfMetricParams.numOfMetrics * sizeof(CUpti_SassMetrics_MetricDetails));
+    memset(supportedMetrics, 0, getNumOfMetricParams.numOfMetrics * sizeof(CUpti_SassMetrics_MetricDetails));
+    if (!supportedMetrics) {
+        LOGE(LOG_ERROR, "supportedMetrics Memory allocation failed!");
+        return;
+    }
+
+    CUpti_SassMetrics_GetMetrics_Params getMetricsParams;
+    memset(&getMetricsParams, 0, sizeof(getMetricsParams));
+    getMetricsParams.structSize = CUpti_SassMetrics_GetMetrics_Params_STRUCT_SIZE;
+    getMetricsParams.pChipName = getChipParams.pChipName;
+    getMetricsParams.pMetricsList = supportedMetrics;
+    getMetricsParams.numOfMetrics = getNumOfMetricParams.numOfMetrics;
+    CHECK_CUPTI(cuptiSassMetricsGetMetrics(&getMetricsParams));
+
+    // Print the available metrics
+    LOGE(LOG_DEBUG, "Number of available SASS metrics: %lu\n", getMetricsParams.numOfMetrics);
+    for (size_t i = 0; i < getMetricsParams.numOfMetrics; i++) {
+        LOGE(LOG_DEBUG, "Metric Name: %s, %s\n",
+               supportedMetrics[i].pMetricName,
+            //    supportedMetrics[i].metricId,
+               supportedMetrics[i].pMetricDescription);
+    }
+    
+    
+    CUpti_SassMetricsSetConfig_Params sassMetricsSetConfigParams;
+    memset(&sassMetricsSetConfigParams, 0, sizeof(sassMetricsSetConfigParams));
+    sassMetricsSetConfigParams.structSize = CUpti_SassMetricsSetConfig_Params_STRUCT_SIZE;
+    sassMetricsSetConfigParams.deviceIndex = deviceIndex;
+    sassMetricsSetConfigParams.numOfMetricConfig = numOfMetrics;
+
+    CUpti_SassMetrics_Config* metricConfigs = (CUpti_SassMetrics_Config*) malloc(sassMetricsSetConfigParams.numOfMetricConfig * sizeof(CUpti_SassMetrics_Config));
+    memset(metricConfigs, 0, sassMetricsSetConfigParams.numOfMetricConfig * sizeof(CUpti_SassMetrics_Config));
+    for(size_t index = 0; index < sassMetricsSetConfigParams.numOfMetricConfig; index++){
+        metricConfigs[index].metricId = supportedMetrics[index].metricId;
+        metricConfigs[index].outputGranularity = outputGranularity;
+        LOGE(LOG_DEBUG, "SetConfig for Metric Name: %s\n",
+               supportedMetrics[index].pMetricName);
+    }
+
+    sassMetricsSetConfigParams.pConfigs = metricConfigs;
+    CHECK_CUPTI(cuptiSassMetricsSetConfig(&sassMetricsSetConfigParams));
+
+    supported_metric_initialized = 1;
+    return;
+}
+
+void deinit_sass_metrics(){
+
+    LOGE(LOG_DEBUG, "Deinit SASS Metrics");
+    if(supported_metric_initialized == 0){
+        return;
+    }
+    
+    deinit_metric_database();
+
+    // Unset the CUPTI SASS Metrics configuration
+    CUpti_SassMetricsUnsetConfig_Params unsetConfigParams;
+    memset(&unsetConfigParams, 0, sizeof(unsetConfigParams));
+    unsetConfigParams.structSize = CUpti_SassMetricsUnsetConfig_Params_STRUCT_SIZE;
+    unsetConfigParams.deviceIndex = deviceIndex;
+    CHECK_CUPTI(cuptiSassMetricsUnsetConfig(&unsetConfigParams));
+    // Free allocated memory
+    free(supportedMetrics);
+}
+
+metric_feature_t* assemble_metrics(CUpti_SassMetricsFlushData_Params* flushDataParams, CUpti_SassMetricsGetDataProperties_Params* getDataPropParams){
+
+    // compute features based on the kernels:
+    metric_feature_t* features = (metric_feature_t*)malloc(numOfMetrics * sizeof(metric_feature_t));
+    if (!features) {
+        LOGE(LOG_ERROR, "Failed to allocate features array!");
+    }
+
+    for(size_t m = 0; m < numOfMetrics; m++){
+        features[m].metricId   = supportedMetrics[m].metricId;
+        features[m].metricName = supportedMetrics[m].pMetricName;
+        features[m].sumValue   = 0.0;
+        features[m].appliedCount = 0;
+    }
+
+    // Iterate over each patched instruction record
+    for (size_t recordIndex = 0; recordIndex < getDataPropParams->numOfPatchedInstructionRecords; recordIndex++) {
+        CUpti_SassMetrics_Data* pMetricsData = &(flushDataParams->pMetricsData[recordIndex]);
+        
+        // Loop over all instance slots for this instruction record.
+        for (size_t instanceIndex = 0; instanceIndex < getDataPropParams->numOfInstances; instanceIndex++) {
+            CUpti_SassMetrics_InstanceValue* pInstanceValue = &(pMetricsData->pInstanceValues[instanceIndex]);
+            // If this instance corresponds to metric m, accumulate its value.
+            int pos = numOfMetrics;
+            for(int m = 0; m < numOfMetrics; m++){
+                if(pInstanceValue->metricId == features[m].metricId){
+                    pos = m;
+                    break;
+                }
+            }
+            
+            if(pos == numOfMetrics){
+                LOGE(LOG_ERROR, "Metric ID %lu not found in supported metrics", pInstanceValue->metricId);
+                return NULL;
+            }
+
+            features[pos].appliedCount++;
+            features[pos].sumValue += (double)pInstanceValue->value;
+        }
+    }
+
+    // Compute and log the features for each metric.
+    // The ratio is the fraction of patched instructions that reported this metric.
+    // The average value is the mean of per-instruction averages (over those instructions where it applies).
+    for (size_t m = 0; m < numOfMetrics; m++) {
+        double ratio = (double) features[m].appliedCount / (double)getDataPropParams->numOfPatchedInstructionRecords/(double)getDataPropParams->numOfInstances;
+        double averageValue = (features[m].appliedCount > 0) ? features[m].sumValue / features[m].appliedCount : 0.0;
+        if (false && features[m].appliedCount > 0) {
+            LOGE(LOG_INFO, "Feature for metric %s: ratio = %.3f, average value = %.3f\n",
+            features[m].metricName,
+            ratio, averageValue);
+        }
+        features[m].ratio = ratio;
+        features[m].averageValue = averageValue;
+    }
+
+    return features;
+}
+
+metric_feature_t* get_sass_metrics(api_record_t* record){
+
+    init_sass_metrics();
+    // Get the list of available SASS metrics
+
+    // Enable SASS Patching
+    metric_feature_t* features = NULL;
+
+    CUpti_SassMetricsEnable_Params enableParams;
+    memset(&enableParams, 0, sizeof(enableParams));
+    enableParams.structSize = CUpti_SassMetricsEnable_Params_STRUCT_SIZE;
+    enableParams.enableLazyPatching = 1;
+    CHECK_CUPTI(cuptiSassMetricsEnable(&enableParams));
+
+    exe_cuda_launch_kernel_1(record);
+    cudaDeviceSynchronize();
+
+    // Get data properties for the patched instructions
+    CUpti_SassMetricsGetDataProperties_Params getDataPropParams;
+    memset(&getDataPropParams, 0, sizeof(getDataPropParams));
+    getDataPropParams.structSize = CUpti_SassMetricsGetDataProperties_Params_STRUCT_SIZE;
+    CHECK_CUPTI(cuptiSassMetricsGetDataProperties(&getDataPropParams));
+
+    LOGE(LOG_DEBUG, "Data properties: numOfInstances: %lu, numOfPatchedInstructionRecords: %lu\n",
+           getDataPropParams.numOfInstances,
+           getDataPropParams.numOfPatchedInstructionRecords);
+
+    if (getDataPropParams.numOfInstances != 0 && getDataPropParams.numOfPatchedInstructionRecords != 0)
+    {
+        // allocate memory for getting patched data.
+
+        CUpti_SassMetricsFlushData_Params flushDataParams;
+        memset(&flushDataParams, 0, sizeof(flushDataParams));
+        flushDataParams.structSize = CUpti_SassMetricsFlushData_Params_STRUCT_SIZE;
+        flushDataParams.numOfInstances = getDataPropParams.numOfInstances;
+        flushDataParams.numOfPatchedInstructionRecords = getDataPropParams.numOfPatchedInstructionRecords;
+        flushDataParams.pMetricsData =
+                (CUpti_SassMetrics_Data*)malloc(getDataPropParams.numOfPatchedInstructionRecords * sizeof(CUpti_SassMetrics_Data));
+        memset(flushDataParams.pMetricsData, 0, getDataPropParams.numOfPatchedInstructionRecords * sizeof(CUpti_SassMetrics_Data));
+        for (size_t recordIndex = 0;
+            recordIndex < getDataPropParams.numOfPatchedInstructionRecords;
+            ++recordIndex)
+        {
+            flushDataParams.pMetricsData[recordIndex].structSize = CUpti_SassMetricsFlushData_Params_STRUCT_SIZE;
+            flushDataParams.pMetricsData[recordIndex].pInstanceValues =
+                (CUpti_SassMetrics_InstanceValue*) malloc(getDataPropParams.numOfInstances * sizeof(CUpti_SassMetrics_InstanceValue));
+            memset(flushDataParams.pMetricsData[recordIndex].pInstanceValues, 0, getDataPropParams.numOfInstances * sizeof(CUpti_SassMetrics_InstanceValue));
+        }
+
+        CHECK_CUPTI(cuptiSassMetricsFlushData(&flushDataParams));
+        
+        features = assemble_metrics(&flushDataParams, &getDataPropParams);
+    }
+
+    // All kernels patched earlier will be reset to their original state.
+    CUpti_SassMetricsDisable_Params disableParams;
+    memset(&disableParams, 0, sizeof(disableParams));
+    disableParams.structSize = CUpti_SassMetricsDisable_Params_STRUCT_SIZE;
+    CHECK_CUPTI(cuptiSassMetricsDisable(&disableParams));
+    return features;
+}
+
+void cupti_profile(api_record_t* record){
+}
+
+// process the database records 
+void process_database_records(){
+    // can you take some abstract feature of a kernel and record how long it takes
+    for(int i = 0; i < database_records.length; i++){
+        api_record_t *record;
+        if(list_at(&database_records, i, (void**)&record) != 0){
+            LOGE(LOG_ERROR, "list_at %d returned an error.", i);
+            continue;
+        }
+        if(record->exe_status == 1) continue;
+        switch(record->function){
+            case CUDA_LAUNCH_KERNEL:
+                LOGE(LOG_DEBUG, "Processing database record for CUDA_LAUNCH_KERNEL");
+                cudaEvent_t start, stop;
+                cuda_launch_kernel_1_argument *arg = (cuda_launch_kernel_1_argument*)record->arguments;
+                ptr stream = arg->arg6;
+                cudaEventCreate(&start);
+                cudaEventCreate(&stop);
+                cudaEventRecord(start, (void*)stream);
+                exe_cuda_launch_kernel_1(record);
+                cudaEventRecord(stop, (void*)stream);
+                cudaEventSynchronize(stop);
+                float ms;
+                cudaEventElapsedTime(&ms, start, stop);
+                // note ts is heavily overloaded with its meaning
+                // here it represents the duration of the kernel
+                record->ts = (uint64_t)(ms*1000000) - record->ts;
+                LOGE(LOG_DEBUG, "func %p, latency ts(us) %lu\n", (void*) arg->arg1, (record->ts)/1000);
+
+                metric_feature_t* features = get_sass_metrics(record);
+                if(features == NULL){
+                    LOGE(LOG_ERROR, "Failed to get SASS metrics");
+                    break;
+                }else{
+                    dump_metrics_to_database(features, numOfMetrics, record->ts);
+                    free(features);
+                }
+                
+                record->ts = 0;
+                break;
+            default:
+                break;
+        }
+    }
+
+}
+
+void deinit_server_exec(){
+    deinit_sass_metrics();
+}

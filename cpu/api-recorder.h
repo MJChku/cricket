@@ -108,6 +108,8 @@ void api_records_print_records(api_record_t *record);
 
 extern list nex_api_records;
 
+extern list database_records;
+
 static ptr virtual_ID = 0x1234567;
 ptr virtual_client_addr_gen(void);
 

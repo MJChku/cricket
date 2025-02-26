@@ -5,6 +5,7 @@ SERVER_LIB = cricket-server.so
 CLIENT = cricket-client.so
 
 CUDA_SRC = /usr/local/cuda
+CUDA_TARGET_SRC = /usr/local/cuda/targets/x86_64-linux
 LIBTIRPC_PREFIX = ../submodules/libtirpc/install
 SUBMODULE_LIBS = ../submodules/lib
 
@@ -45,7 +46,9 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 cpu-server-cudnn.c         \
 			 cpu-server-cublaslt.c	\
 			 cpu-server-exec.c	\
-			 timestamp.c
+			 cpu-server-database.c \
+			 timestamp.c	
+			
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c
@@ -81,6 +84,7 @@ OBJ_CLIENT = $(SRC_CLIENT:%.c=%.o)
 RPCGEN_FLAGS = -C -M -N
 INC_FLAGS += -I$(LIBTIRPC_PREFIX)/include/tirpc
 INC_FLAGS += -I$(CUDA_SRC)/include
+INC_FLAGS += -I$(CUDA_TARGET_SRC)/include
 
 LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/lib
 LIB_FLAGS += -L$(CUDA_SRC)/lib64
@@ -113,7 +117,7 @@ ifdef WITH_IB
 CC_FLAGS += -DWITH_IB=$(WITH_IB)
 endif
 
-SERVER_LD_FLAGS = $(LD_FLAGS) -lcudart -lcusolver -lcuda -lcublas -lrt -lpthread -lnvidia-ml -lcudnn -lcublasLt
+SERVER_LD_FLAGS = $(LD_FLAGS) -lcudart -lcusolver -lcuda -lcublas -lrt -lpthread -lnvidia-ml -lcudnn -lcublasLt -lcupti
 SERVER_BIN_LD_FLAGS = $(SERVER_LD_FLAGS) -Wl,--unresolved-symbols=ignore-in-object-files
 CLIENT_LD_FLAGS = $(LD_FLAGS)
 
